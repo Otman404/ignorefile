@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+
+import requests
+import sys
+import os
+import click
+
+__author__ = 'Otmane Boughaba'
+__copyright__ = 'Copyright (C) 2020 Otmane Boughaba'
+__license__ = 'MIT'
+__version__ = '0.1.2'
+
+api = "https://www.toptal.com/developers/gitignore/api/list?format="
+
+
+def language_in_file(language):
+    with open('.gitignore',"r") as f:
+        for line in f:
+            if line.startswith(f'### {language.capitalize()} ###'):
+                return True
+        return False
+
+@click.command()
+
+@click.argument('language', nargs=1,required=False)
+
+@click.option('--list', default=False, is_flag=True, help='list all available languages/Frameworks.')
+@click.version_option(__version__, prog_name='ignorefile')
+def main(language,list):
+    """
+    Download .gitignore file of the the language of your choice.
+
+
+    \b
+    Arguments:
+      LANGUAGE\tName of the language to download .gitignore for.
+    """
+
+    if list:
+        try:
+            all_languages = requests.get(url=api+'lines').text.split('\n')
+            click.echo_via_pager('\n'.join('> %s' % lang for lang in all_languages))
+            sys.exit()
+        except Exception as e:
+            click.secho(str(e),fg="red")
+            sys.exit()
+    if language and not list:
+        try:
+            r = requests.get(url=api+'json')
+            res = r.json()
+        except Exception as e:
+            click.secho(str(e),fg="red")
+            sys.exit()
+
+        language = language.lower()
+        if language in res:
+
+            try:
+                if os.path.isfile('.gitignore'):
+                    click.echo('.gitignore already exists, [A]ppend, [O]verride, [Q]uit?', nl=False)
+                    c = click.getchar()
+                    click.echo() #for new line
+                    if c.lower()== 'a':
+                        ####
+                        if language_in_file(language):
+                            click.echo(f".gitignore already have {language.capitalize()} files.")
+                            sys.exit()
+                        ####
+                        else:
+                            with open('.gitignore',"a+") as f:
+                                f.write(res[language]['contents'])
+
+
+
+                            ## remove duplicates
+                            lines_seen = set()
+                            with open('.gitignore',"r+") as f:
+                                tmp = []
+                                for line in f:
+                                    if line not in lines_seen:
+                                        lines_seen.add(line)
+                                        tmp.append(line)
+                                f.seek(0, 0)
+                                f.write(''.join(tmp))
+
+                            click.echo(f'{language} added to .gitignore')
+
+                    if c.lower() == 'o':
+                        with open(f'.gitignore',"w") as f:
+                            f.write(res[language]['contents'])
+                        sys.exit()
+                    if c.lower() == 'q':
+                        sys.exit()
+                else:
+
+                    with open(f'.gitignore',"w") as f:
+                        f.write(res[language]['contents'])
+                    click.secho(f'.gitignore for {language} is created', fg='green')
+            except Exception as e:
+                click.secho(str(e),fg="red")
+                sys.exit()
+
+
+        else:
+
+            click.secho(f"can't find a .gitignore for {language}",fg="red")
+            sys.exit()
+    else:
+        click.secho('You need to specify a language,\nex: ignorefile django')
+
+if __name__ =="__main__":
+    main(prog_name='ignorefile')
